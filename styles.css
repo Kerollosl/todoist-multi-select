@@ -1,0 +1,202 @@
+/* A compact command surface that sits beside Todoist rather than competing with it. */
+:root {
+  --tms-ink: #202020;
+  --tms-muted: #6b6b6b;
+  --tms-line: rgba(0, 0, 0, 0.14);
+  --tms-surface: #ffffff;
+  --tms-soft: #f4f4f2;
+  --tms-action: #246fe0;
+  --tms-action-hover: #1f63c7;
+  --tms-focus: rgba(36, 111, 224, 0.42);
+}
+
+.tms-copy-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 84px;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--tms-line);
+  border-radius: 8px;
+  background: var(--tms-surface);
+  color: var(--tms-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+  transition: opacity 0.14s ease, transform 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
+  user-select: none;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.tms-copy-fab.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.tms-copy-fab:hover {
+  border-color: rgba(36, 111, 224, 0.48);
+  background: #f7faff;
+}
+
+.tms-copy-fab:active {
+  transform: translateY(1px);
+  background: #eef5ff;
+}
+
+.tms-copy-fab:focus-visible,
+.tms-btn:focus-visible {
+  outline: 3px solid var(--tms-focus);
+  outline-offset: 2px;
+}
+
+.tms-copy-fab::after {
+  content: "Copy";
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  margin-left: 2px;
+  border-radius: 5px;
+  background: var(--tms-action);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tms-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 140px;
+  z-index: 100000;
+  max-width: min(320px, calc(100vw - 48px));
+  padding: 10px 12px;
+  border: 1px solid var(--tms-line);
+  border-radius: 7px;
+  background: var(--tms-surface);
+  color: var(--tms-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  pointer-events: none;
+}
+
+.tms-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tms-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 22, 22, 0.28);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.tms-modal {
+  min-width: 300px;
+  max-width: 380px;
+  padding: 18px 18px 14px;
+  border: 1px solid var(--tms-line);
+  border-radius: 10px;
+  background: var(--tms-surface);
+  box-shadow: none;
+}
+
+.tms-modal-title {
+  margin-bottom: 6px;
+  color: var(--tms-ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tms-modal-body {
+  margin-bottom: 18px;
+  color: var(--tms-muted);
+  font-size: 14px;
+}
+
+.tms-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tms-btn {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.tms-btn-ghost {
+  background: var(--tms-soft);
+  color: var(--tms-ink);
+}
+
+.tms-btn-ghost:hover { background: #e9e9e6; }
+
+.tms-btn-primary {
+  background: var(--tms-action);
+  color: #fff;
+}
+
+.tms-btn-primary:hover { background: var(--tms-action-hover); }
+
+.tms-group-nav-item { list-style: none; margin: 4px 0; }
+.tms-group-nav-item[hidden] { display: none; }
+.tms-group-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: 400 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.tms-group-btn::before { content: "▦"; width: 20px; text-align: center; font-size: 18px; opacity: .65; }
+.tms-group-btn:hover { background: rgba(128, 128, 128, .12); }
+.tms-group-btn:disabled { opacity: .6; cursor: wait; }
+.tms-group-btn:focus-visible { outline: 3px solid var(--tms-focus); outline-offset: 2px; }
+
+@media (max-width: 760px) {
+  .tms-copy-fab { right: 12px; max-width: calc(100vw - 24px); }
+  .tms-toast { right: 12px; max-width: calc(100vw - 24px); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .tms-modal { background: #262626; border-color: rgba(255, 255, 255, 0.14); }
+  .tms-modal-title { color: #fff; }
+  .tms-modal-body { color: #bbb; }
+  .tms-btn-ghost { background: #373737; color: #eee; }
+  .tms-btn-ghost:hover { background: #3d3d3d; }
+  .tms-copy-fab, .tms-toast { background: #262626; color: #f4f4f4; border-color: rgba(255, 255, 255, 0.16); }
+  .tms-copy-fab:hover { background: #2c3139; border-color: rgba(96, 165, 250, 0.62); }
+}

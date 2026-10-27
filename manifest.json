@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Todoist Task Toolkit",
+  "version": "1.2.0",
+  "description": "Copy selected Todoist tasks and organize project boards with ChatGPT Work using GPT-6 Luna at Medium effort.",
+  "permissions": ["clipboardWrite", "storage"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.todoist.com/*",
+        "https://todoist.com/*"
+      ],
+      "js": ["content.js", "groups.js"],
+      "css": ["styles.css"]
+    },
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["chatgpt-work.js"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
