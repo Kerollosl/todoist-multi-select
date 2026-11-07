@@ -262,7 +262,61 @@
   // --- Watch for selection bar & cache selected tasks ---
   let lastSelectedCount = 0;
 
+  // Open Todoist's native bulk-action menu directly from a Priority button.
+  function updateSelectionToolbar() {
+    const matchesName = (el, pattern) =>
+      [el.getAttribute("aria-label"), el.getAttribute("title"), el.textContent]
+        .some((value) => pattern.test((value || "").trim()));
+    const labels = document.querySelector('[data-action-hint="multi-select-toolbar-label-picker"]');
+    if (!labels) return;
+    if (labels.classList.contains("tms-hidden-labels")) return;
+
+    let bar = labels.parentElement;
+    while (bar && bar !== document.body) {
+      const buttons = Array.from(bar.querySelectorAll('button, [role="button"]'));
+      // The final icon-only control is Todoist's More actions button. Its
+      // accessible name can vary, so use the toolbar structure as a fallback.
+      const nativeButtons = buttons.filter((el) => !el.classList.contains("tms-priority-button"));
+      const more = nativeButtons.find((el) => matchesName(el, /more actions/i)) || nativeButtons.at(-1);
+      const deleteButton = nativeButtons.find((el) => matchesName(el, /^delete(?:\s|$)/i));
+      const isToolbar = nativeButtons.length >= 3 && nativeButtons.length <= 12 &&
+        deleteButton && more !== deleteButton && nativeButtons.indexOf(more) > nativeButtons.indexOf(deleteButton);
+      if (isToolbar && more && more !== labels) {
+        const existing = bar.querySelector(".tms-priority-button");
+        if (existing) {
+          labels.classList.add("tms-hidden-labels");
+          return;
+        }
+        const priority = document.createElement("button");
+        priority.type = "button";
+        // Preserve Todoist's button and inner text classes so typography,
+        // spacing, hover and focus states match the neighboring controls.
+        priority.className = `${labels.className} tms-priority-button`;
+        priority.setAttribute("aria-label", "Priority");
+        priority.setAttribute("aria-haspopup", "true");
+        priority.append(...Array.from(labels.childNodes, (node) => node.cloneNode(true)));
+        const icon = priority.querySelector("svg");
+        if (icon) {
+          icon.setAttribute("aria-hidden", "true");
+          icon.innerHTML = '<path d="M5.5 20V4.5c4-3 8 3 13 0v10c-5 3-9-3-13 0" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>';
+        }
+        const textNodes = document.createTreeWalker(priority, NodeFilter.SHOW_TEXT);
+        while (textNodes.nextNode()) {
+          if (textNodes.currentNode.textContent.trim() === "Labels") {
+            textNodes.currentNode.textContent = "Priority";
+          }
+        }
+        priority.addEventListener("click", () => more.click());
+        labels.insertAdjacentElement("afterend", priority);
+        labels.classList.add("tms-hidden-labels");
+        return;
+      }
+      bar = bar.parentElement;
+    }
+  }
+
   function checkForSelectionBar() {
+    updateSelectionToolbar();
     const selectedEls = document.querySelectorAll(
       '.board_task[aria-selected="true"], [data-testid="task-card"][aria-selected="true"]'
     );

@@ -1,4 +1,7 @@
 /* A compact command surface that sits beside Todoist rather than competing with it. */
+.tms-hidden-labels { display: none !important; }
+/* Priority uses the native Labels button's classes and inner wrappers. */
+
 :root {
   --tms-ink: #202020;
   --tms-muted: #6b6b6b;

@@ -29,3 +29,5 @@ Handoffs are single use, tied to the newly opened tab, expire after ten minutes,
 ## Copy selected tasks
 
 Select Todoist tasks, then use the floating **Copy** button or **Cmd/Ctrl + Shift + C**. The button sits above the native selection toolbar, including in narrow windows. Copying offers the existing choice to keep the tasks or mark them complete.
+
+The selection toolbar replaces **Labels** with **Priority**, which opens Todoist's native bulk priority picker. Other actions remain in **More actions**.
