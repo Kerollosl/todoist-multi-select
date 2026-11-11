@@ -5,17 +5,19 @@ MV3 Chrome extension that copies Todoist's native selected tasks and prepares bo
 ## Architecture
 
 ```
+selectors.js    → all Todoist DOM selectors (one SELECTORS object)
 content.js      → native selection copy and optional completion
 groups.js       → sidebar action, virtualized column scan, missing group creation
 background.js   → sorting prompt and tab-bound, single-use handoff
 chatgpt-work.js → Work/Luna/Medium/plugin verification, draft insertion, one send
 styles.css      → sidebar action, floating copy action, toast and modal
-manifest.json   → clipboardWrite/storage; scripts on Todoist and ChatGPT
+manifest.json   → clipboardWrite/storage/scripting; scripts on Todoist; chatgpt-work.js is registered dynamically only when Groups + Work is on (optional host permission)
+popup/options   → toolbar popup, options page (Copy on, Groups + Work off by default)
 ```
 
 ## How It Works
 
-- `content.js` polls native selected rows and caches their content before a click can deselect them.
+- `content.js` watches native selected rows with a throttled MutationObserver and caches their content before a click can deselect them.
 - Copy preserves task links and descriptions and offers an explicit completion choice.
 - Group recognition accepts Group 1/2/3 prefixes with optional legacy descriptive suffixes. The Work prompt requires exact Group 1, Group 2, and Group 3 names and removes any legacy suffixes.
 - Named sections have an extra sortable wrapper; find insertion controls through `[data-drag-scroll-target]`.

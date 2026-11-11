@@ -1,14 +1,14 @@
 # Todoist Task Toolkit
 
-Chrome extension for copying selected Todoist tasks and organizing board sections through ChatGPT Work. No build step or API key is required.
+Chrome extension for copying selected Todoist tasks, plus an optional (off by default) helper that prepares board sections and drafts a sorting request in ChatGPT Work. No build step or API key is required. Unofficial; not affiliated with Todoist or OpenAI.
 
 ## Install or update
 
-Load this folder as an unpacked extension in `chrome://extensions`. After updating, click **Reload** on **Todoist Task Toolkit**, then refresh your Todoist tabs. Version 1.2.0 replaces **Todoist Multi-Select & Copy** and its Muse integration. The sidebar action tooltip shows the script version.
+Load this folder as an unpacked extension in `chrome://extensions`. After updating, click **Reload** on **Todoist Task Toolkit**, then refresh your Todoist tabs. The version is shown in the toolbar popup. Run `./package.sh` to build the store zip.
 
 ## Groups + Work
 
-In an Inbox or project **board view**, click **Groups + Work** in the sidebar below the main navigation links. Open the sidebar if it is collapsed.
+Off by default. Turn it on under the extension options (toolbar icon, then Open options); Chrome asks for access to chatgpt.com, and the ChatGPT script is only registered while the option is on. In an Inbox or project **board view**, click **Groups + Work** in the sidebar below the main navigation links. Open the sidebar if it is collapsed.
 
 The extension creates missing **Group 1**, **Group 2**, and **Group 3** sections, verifies them, and opens a fresh `https://chatgpt.com/` tab. It then:
 

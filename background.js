@@ -12,10 +12,42 @@ Todoist project: ${projectUrl}
 6. Read back the results. Verify every task originally in No Section is accounted for exactly once, with no duplicates or missing tasks, and verify the final section names and task order. Report any task you could not move or order. Finish with a concise summary of each group and the first three tasks I should tackle.`;
 }
 
+// chatgpt-work.js is injected only when the user has turned Groups + Work on
+// AND granted access to chatgpt.com. Otherwise nothing runs on ChatGPT at all.
+const WORK_SCRIPT_ID = 'tms-chatgpt-work';
+const CHATGPT_ORIGINS = ['https://chatgpt.com/*'];
+async function syncWorkScript() {
+  const { groupsEnabled } = await chrome.storage.sync.get({ groupsEnabled: false });
+  const granted = await chrome.permissions.contains({ origins: CHATGPT_ORIGINS });
+  const registered = (await chrome.scripting.getRegisteredContentScripts({ ids: [WORK_SCRIPT_ID] })).length > 0;
+  if (groupsEnabled === true && granted) {
+    if (!registered) {
+      await chrome.scripting.registerContentScripts([{
+        id: WORK_SCRIPT_ID,
+        matches: CHATGPT_ORIGINS,
+        js: ['chatgpt-work.js'],
+        runAt: 'document_idle',
+        persistAcrossSessions: true
+      }]);
+    }
+  } else if (registered) {
+    await chrome.scripting.unregisterContentScripts({ ids: [WORK_SCRIPT_ID] });
+  }
+}
+const safeSync = () => syncWorkScript().catch(error => console.warn('Todoist Task Toolkit: could not update ChatGPT script', error));
+chrome.runtime.onInstalled.addListener(safeSync);
+chrome.runtime.onStartup.addListener(safeSync);
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'sync' && changes.groupsEnabled) safeSync(); });
+chrome.permissions.onAdded.addListener(safeSync);
+chrome.permissions.onRemoved.addListener(safeSync);
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const origin = sender.url && new URL(sender.url).origin;
   if (message.type === 'tms-open-work' && ['https://app.todoist.com', 'https://todoist.com'].includes(origin)) {
     (async () => {
+      const { groupsEnabled } = await chrome.storage.sync.get({ groupsEnabled: false });
+      if (groupsEnabled !== true) throw new Error('Groups + Work is turned off in the extension options.');
+      if (!(await chrome.permissions.contains({ origins: CHATGPT_ORIGINS }))) throw new Error('Allow access to chatgpt.com in the extension options first.');
       const project = new URL(message.projectUrl);
       if (project.origin !== origin || !/^\/app\/(inbox|project\/[^/]+)\/?$/.test(project.pathname)) throw new Error('Invalid Todoist project.');
       const id = crypto.randomUUID();

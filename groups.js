@@ -1,9 +1,12 @@
 (() => {
   "use strict";
+  const SEL = self.TMS_SELECTORS;
   const names = ["Group 1", "Group 2", "Group 3"];
   let busy = false;
-  const sections = () => [...document.querySelectorAll('[data-testid="board-section"]')];
-  const title = el => el.querySelector('.board_section__title')?.textContent.trim();
+  let enabled = false; // Groups + Work is opt-in; see the Options page.
+  const sections = () => [...document.querySelectorAll(SEL.boardSection)];
+  const title = el => el.querySelector(SEL.boardSectionTitle)?.textContent.trim();
+  const notify = (message, ms = 6000) => (self.TMS_TOAST ? self.TMS_TOAST(message, ms) : console.warn('Todoist Task Toolkit:', message));
   const groupName = name => {
     const match = /^Group ([123])(?:$|\s|[—–:|\-])/i.exec(name || '');
     return match ? `Group ${match[1]}` : null;
@@ -64,7 +67,7 @@
   }
   async function createGroup(name, anchorName, url) {
     checkContext(url);
-    if (document.querySelector('[data-testid="section-form"]')) throw new Error('Finish or cancel the open section form first.');
+    if (document.querySelector(SEL.sectionForm)) throw new Error('Finish or cancel the open section form first.');
     let column = anchorName ? sections().find(el => groupName(title(el)) === anchorName) : noSection();
     const scroll = scroller();
     if (!column && scroll) { scroll.scrollLeft = 0; await sleep(120); }
@@ -78,11 +81,11 @@
     }
     // Named sections have an extra sortable wrapper that No Section does not.
     // Scope insertion to the column's stable outer wrapper, not its direct parent.
-    const wrapper = column?.closest('[data-drag-scroll-target]');
-    const trigger = wrapper?.querySelector('.board_add_section_trigger__container button');
+    const wrapper = column?.closest(SEL.dragScrollTarget);
+    const trigger = wrapper?.querySelector(SEL.addSectionButton);
     if (!trigger) throw new Error(`Cannot find Add section after ${anchorName || 'No Section'}. No further sections were created; reload Todoist and retry.`);
     trigger.click();
-    const input = await waitFor(() => document.querySelector('[data-testid="section-form"] input[name="section_name"]'));
+    const input = await waitFor(() => document.querySelector(SEL.sectionNameInput));
     checkContext(url);
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, name);
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -95,7 +98,7 @@
     submit.click();
     // Never retry a timed-out submission: it may already have succeeded remotely.
     await waitFor(() => sections().find(el => groupName(title(el)) === name));
-    await waitFor(() => !document.querySelector('[data-testid="section-form"]'));
+    await waitFor(() => !document.querySelector(SEL.sectionForm));
   }
   async function run(button) {
     if (busy) return;
@@ -113,25 +116,30 @@
       const confirmed = await scanBoard(url);
       if (!names.every(name => confirmed.has(name))) throw new Error('Could not verify all three groups. ChatGPT Work was not started.');
       const response = await chrome.runtime.sendMessage({ type: 'tms-open-work', projectUrl: url });
-      if (!response?.ok) throw new Error(response?.error || 'Could not open ChatGPT Work. Reload the extension and try again.');
+      if (!response?.ok) throw new Error(response?.error || 'Could not open ChatGPT Work. Turn Groups + Work off and on in the extension options, then try again.');
       button.textContent = 'Groups ready · Work opened';
     } catch (error) {
       button.textContent = 'Groups + Work';
-      alert(error.message);
+      notify(error.message);
     } finally {
       busy = false;
       button.disabled = false;
     }
   }
   function mount() {
-    const navigation = document.querySelector('#top-menu');
     const existingItem = document.querySelector('.tms-group-nav-item');
+    if (!enabled) {
+      existingItem?.remove();
+      return;
+    }
+    const navigation = document.querySelector(SEL.sidebarMenu);
     const available = !!projectUrl() && sections().length > 0;
     if (existingItem) {
       existingItem.hidden = !available;
       existingItem.querySelector('button').disabled = busy;
       return;
     }
+    // Fail soft: without the sidebar menu or any board section, add nothing.
     if (!navigation || !available) return;
     const item = document.createElement('li');
     item.className = 'tms-group-nav-item';
@@ -139,8 +147,7 @@
     button.type = 'button';
     button.className = 'tms-group-btn';
     button.textContent = 'Groups + Work';
-    button.dataset.tmsVersion = '1.2.0';
-    button.title = 'Todoist Task Toolkit v1.2.0 — Prepare three groups and organize tasks with ChatGPT Work · GPT-6 Luna · Medium';
+    button.title = 'Prepare Group 1, 2 and 3 sections, then hand the sorting prompt to ChatGPT Work';
     button.disabled = busy;
     button.addEventListener('mousedown', event => event.stopPropagation());
     button.addEventListener('click', event => {
@@ -151,6 +158,14 @@
     item.appendChild(button);
     navigation.appendChild(item);
   }
-  setInterval(mount, 500);
-  mount();
+  // One throttled observer instead of a 500ms interval.
+  let timer = 0;
+  const schedule = () => { if (!timer) timer = setTimeout(() => { timer = 0; mount(); }, 250); };
+  new MutationObserver(records => {
+    if (records.some(r => !(r.target.nodeType === 1 ? r.target : r.target.parentElement)?.closest('.tms-group-nav-item'))) schedule();
+  }).observe(document.body, { childList: true, subtree: true });
+  chrome.storage.sync.get({ groupsEnabled: false }).then(v => { enabled = v.groupsEnabled === true; mount(); });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.groupsEnabled) { enabled = changes.groupsEnabled.newValue === true; mount(); }
+  });
 })();

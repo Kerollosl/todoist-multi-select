@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Todoist Task Toolkit options</title>
+  <link rel="stylesheet" href="ui.css">
+  
+</head>
+<body class="page">
+<main>
+  <h1>Todoist Task Toolkit</h1>
+  <p class="muted" id="version"></p>
+
+  <section class="card">
+    <label class="row">
+      <input type="checkbox" id="copy">
+      <span><strong>Copy selected tasks</strong>
+        <span class="muted">Adds a floating Copy button and a Priority shortcut to Todoist's selection toolbar. Shortcut: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd>.</span></span>
+    </label>
+  </section>
+
+  <section class="card">
+    <label class="row">
+      <input type="checkbox" id="groups">
+      <span><strong>Groups + Work (optional)</strong>
+        <span class="muted">Adds a sidebar button on Todoist boards. It creates missing Group 1, 2 and 3 sections, then opens chatgpt.com and drafts a sorting request for ChatGPT Work. This needs access to chatgpt.com, which Chrome will ask you to approve. Off by default.</span></span>
+    </label>
+    <p class="muted">The hand-off sends only the sorting instructions and your Todoist project link to ChatGPT, using the page you are signed in to. The extension does not read your tasks for this and has no servers. ChatGPT, the Todoist connector and your plan can change, in which case the draft is left for you to review and send. Nothing is sent without the final checks passing, and it never completes or deletes tasks itself.</p>
+  </section>
+
+  <p id="status" role="status"></p>
+  <p>Shortcuts: change them at <code>chrome://extensions/shortcuts</code> (copy the address into a new tab).</p>
+  <p><a href="https://todo-privacy-url.invalid/" target="_blank" rel="noopener">Privacy policy</a> (TODO_PRIVACY_URL) &middot; <a href="https://todo-support-url.invalid/" target="_blank" rel="noopener">Support</a> (TODO_SUPPORT_URL)</p>
+  <p class="muted">Unofficial. Not affiliated with Todoist or OpenAI.</p>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

@@ -1,6 +1,22 @@
 (() => {
   "use strict";
 
+  const SEL = self.TMS_SELECTORS;
+  const firstMatch = (root, list) => {
+    for (const selector of list) {
+      const found = root.querySelector(selector);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  // --- Settings (Copy is on unless the user turns it off in Options) ---
+  let copyEnabled = true;
+  chrome.storage.sync.get({ copyEnabled: true }).then((v) => { copyEnabled = v.copyEnabled; schedule(); });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "sync" && changes.copyEnabled) { copyEnabled = changes.copyEnabled.newValue !== false; schedule(); }
+  });
+
   // --- Cached selection (captured BEFORE click can deselect) ---
   let cachedTasks = [];
 
@@ -12,11 +28,27 @@
   document.body.appendChild(toast);
 
   let toastTimer;
-  function showToast(msg) {
+  function showToast(msg, ms = 2500) {
     clearTimeout(toastTimer);
     toast.textContent = msg;
     toast.classList.add("visible");
-    toastTimer = setTimeout(() => toast.classList.remove("visible"), 2500);
+    toastTimer = setTimeout(() => toast.classList.remove("visible"), ms);
+  }
+  // Shared with groups.js (same content-script world) so errors use the toast, not alert().
+  self.TMS_TOAST = showToast;
+
+  // --- Theme: follow Todoist's own background, not just the OS setting ---
+  function updateTheme() {
+    let bg = "";
+    for (const el of [document.body, document.documentElement]) {
+      const c = getComputedStyle(el).backgroundColor;
+      if (c && c !== "transparent" && !/rgba\(.*,\s*0\)$/.test(c)) { bg = c; break; }
+    }
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(bg);
+    const dark = m
+      ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) < 128
+      : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.tmsTheme = dark ? "dark" : "light";
   }
 
   // --- Walk a DOM subtree, preserving anchor URLs ---
@@ -54,27 +86,19 @@
   // --- Extract task content from a board_task element ---
   function extractFromElement(el) {
     // Title: inner_content class holds the task name
-    const titleEl =
-      el.querySelector(".board_task_details__content__inner_content") ||
-      el.querySelector(".task_content") ||
-      el.querySelector('[class*="inner_content"]');
+    const titleEl = firstMatch(el, SEL.taskTitle);
     const title = titleEl ? extractTextWithUrls(titleEl) : "Untitled";
 
     // Description
-    const descEl =
-      el.querySelector(".board_task_details__description") ||
-      el.querySelector('[class*="task_description"]') ||
-      el.querySelector('[class*="description"]');
+    const descEl = firstMatch(el, SEL.taskDescription);
     const description = descEl ? extractTextWithUrls(descEl) : "";
 
     // Due date
-    const dueEl =
-      el.querySelector('[class*="due_date"]') ||
-      el.querySelector("time");
+    const dueEl = firstMatch(el, SEL.taskDue);
     const dueDate = dueEl?.textContent?.trim() || "";
 
     // Subtasks
-    const subItems = el.querySelectorAll('[class*="subtask"]');
+    const subItems = el.querySelectorAll(SEL.taskSubtasks);
     const subtasks = Array.from(subItems).map((s) => s.textContent.trim()).filter(Boolean);
 
     // Task ID from id attribute
@@ -86,12 +110,7 @@
   // --- Mark a task complete by clicking its native checkbox ---
   function completeTask(el) {
     if (!el || !document.body.contains(el)) return false;
-    const checkbox =
-      el.querySelector('button[aria-label*="omplete" i]') ||
-      el.querySelector('[data-testid="task-checkbox"]') ||
-      el.querySelector('button[class*="task_checkbox"]') ||
-      el.querySelector('[class*="checkbox"] button') ||
-      el.querySelector('[class*="checkbox"]');
+    const checkbox = firstMatch(el, SEL.taskCheckbox);
     if (!checkbox) return false;
     checkbox.click();
     return true;
@@ -110,10 +129,7 @@
   // --- Scan DOM for currently selected tasks ---
   function scanSelectedTasks() {
     // board_task elements with aria-selected="true"
-    const selected = document.querySelectorAll(
-      '.board_task[aria-selected="true"], [data-testid="task-card"][aria-selected="true"]'
-    );
-
+    const selected = document.querySelectorAll(SEL.selectedTask);
 
     const results = [];
     for (const el of selected) {
@@ -122,7 +138,7 @@
 
     // Fallback: also check for data-selection-id presence with selected state
     if (results.length === 0) {
-      const withSelectionId = document.querySelectorAll("[data-selection-id]");
+      const withSelectionId = document.querySelectorAll(SEL.selectionIdTask);
       for (const el of withSelectionId) {
         if (el.getAttribute("aria-selected") === "true") {
           results.push(extractFromElement(el));
@@ -160,9 +176,10 @@
       ta.style.cssText = "position:fixed;opacity:0;top:0;left:0";
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand("copy");
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch { ok = false; }
       ta.remove();
-      return true;
+      return ok;
     }
   }
 
@@ -191,57 +208,72 @@
       const actions = mk("div", "tms-modal-actions");
       const cancelBtn = mk("button", "tms-btn tms-btn-ghost", "Keep");
       const confirmBtn = mk("button", "tms-btn tms-btn-primary", "Mark complete");
+      cancelBtn.type = confirmBtn.type = "button";
       actions.appendChild(cancelBtn);
       actions.appendChild(confirmBtn);
       modal.appendChild(actions);
       backdrop.appendChild(modal);
 
+      const previousFocus = document.activeElement;
       const close = (result) => {
         backdrop.remove();
         document.removeEventListener("keydown", onKey, true);
+        if (previousFocus && previousFocus.isConnected) previousFocus.focus();
         resolve(result);
       };
+      // Enter and Space activate whichever button has focus (Keep by default);
+      // only Escape and Tab are handled here.
       const onKey = (e) => {
-        if (e.key === "Escape") { e.stopPropagation(); close(false); }
-        if (e.key === "Enter") { e.stopPropagation(); close(true); }
+        if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); close(false); return; }
+        if (e.key === "Tab") {
+          e.stopPropagation();
+          e.preventDefault();
+          const order = [cancelBtn, confirmBtn];
+          const at = order.indexOf(document.activeElement);
+          const next = e.shiftKey ? (at <= 0 ? 1 : at - 1) : (at === 1 ? 0 : 1);
+          order[next].focus();
+          return;
+        }
+        if (e.key === "Enter" || e.key === " ") e.stopPropagation();
       };
-      const stop = (e) => { e.stopPropagation(); e.stopImmediatePropagation(); };
-      confirmBtn.addEventListener("mousedown", (e) => { stop(e); e.preventDefault(); close(true); });
-      cancelBtn.addEventListener("mousedown", (e) => { stop(e); e.preventDefault(); close(false); });
+      const stop = (e) => { e.stopPropagation(); };
+      cancelBtn.addEventListener("click", (e) => { stop(e); close(false); });
+      confirmBtn.addEventListener("click", (e) => { stop(e); close(true); });
       backdrop.addEventListener("mousedown", (e) => {
-        if (e.target === backdrop) { stop(e); close(false); }
+        stop(e);
+        if (e.target === backdrop) close(false);
       });
-      // Swallow clicks so Todoist doesn't see them
-      backdrop.addEventListener("click", stop, true);
+      // Keep Todoist from seeing clicks inside the dialog (bubble phase, so the buttons still get them).
+      backdrop.addEventListener("click", stop);
       document.addEventListener("keydown", onKey, true);
       document.body.appendChild(backdrop);
-      confirmBtn.focus();
+      cancelBtn.focus();
     });
   }
 
   // --- Copy button ---
   const copyBtn = document.createElement("button");
   copyBtn.className = "tms-copy-fab";
+  copyBtn.type = "button";
   copyBtn.textContent = "Selected tasks";
   copyBtn.setAttribute("aria-label", "Copy selected tasks");
   document.body.appendChild(copyBtn);
 
-  // Use mousedown — fires BEFORE Todoist's click handler deselects
-  copyBtn.addEventListener("mousedown", async (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
+  async function copySelection() {
+    if (!copyEnabled) return;
     // Use cached tasks (captured while still selected)
     const tasks = cachedTasks.length > 0 ? cachedTasks : scanSelectedTasks();
 
     if (tasks.length === 0) {
-      showToast("No tasks found — try selecting tasks first");
+      showToast("No tasks found. Select some tasks first.");
       return;
     }
 
     const text = buildCopyText(tasks);
-    await copyToClipboard(text);
+    if (!(await copyToClipboard(text))) {
+      showToast("Could not copy. Your browser blocked clipboard access.", 4000);
+      return;
+    }
     showToast(`Copied ${tasks.length} task${tasks.length === 1 ? "" : "s"}`);
     const snapshot = tasks.slice();
     cachedTasks = [];
@@ -250,26 +282,35 @@
       const done = await completeTasks(snapshot);
       showToast(`Completed ${done} task${done === 1 ? "" : "s"}`);
     }
+  }
+
+  // Mouse: use mousedown, which fires BEFORE Todoist's click handler deselects.
+  copyBtn.addEventListener("mousedown", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    copySelection();
   });
 
-  // Prevent click from reaching Todoist
+  // Keyboard activation (Enter/Space) arrives as a click with detail 0.
   copyBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     e.preventDefault();
     e.stopImmediatePropagation();
+    if (e.detail === 0) copySelection();
   }, true);
 
   // --- Watch for selection bar & cache selected tasks ---
   let lastSelectedCount = 0;
 
-  // Open Todoist's native bulk-action menu directly from a Priority button.
+  // Add a Priority button beside Todoist's native Labels button (Labels stays visible).
+  // It opens Todoist's own bulk-action menu.
   function updateSelectionToolbar() {
     const matchesName = (el, pattern) =>
       [el.getAttribute("aria-label"), el.getAttribute("title"), el.textContent]
         .some((value) => pattern.test((value || "").trim()));
-    const labels = document.querySelector('[data-action-hint="multi-select-toolbar-label-picker"]');
+    const labels = document.querySelector(SEL.labelsToolbarButton);
     if (!labels) return;
-    if (labels.classList.contains("tms-hidden-labels")) return;
 
     let bar = labels.parentElement;
     while (bar && bar !== document.body) {
@@ -282,11 +323,7 @@
       const isToolbar = nativeButtons.length >= 3 && nativeButtons.length <= 12 &&
         deleteButton && more !== deleteButton && nativeButtons.indexOf(more) > nativeButtons.indexOf(deleteButton);
       if (isToolbar && more && more !== labels) {
-        const existing = bar.querySelector(".tms-priority-button");
-        if (existing) {
-          labels.classList.add("tms-hidden-labels");
-          return;
-        }
+        if (bar.querySelector(".tms-priority-button")) return;
         const priority = document.createElement("button");
         priority.type = "button";
         // Preserve Todoist's button and inner text classes so typography,
@@ -308,7 +345,6 @@
         }
         priority.addEventListener("click", () => more.click());
         labels.insertAdjacentElement("afterend", priority);
-        labels.classList.add("tms-hidden-labels");
         return;
       }
       bar = bar.parentElement;
@@ -316,18 +352,19 @@
   }
 
   function checkForSelectionBar() {
+    updateTheme();
+    if (!copyEnabled) {
+      copyBtn.classList.remove("visible");
+      return;
+    }
     updateSelectionToolbar();
-    const selectedEls = document.querySelectorAll(
-      '.board_task[aria-selected="true"], [data-testid="task-card"][aria-selected="true"]'
-    );
-    const selectedCount = selectedEls.length;
+    const selectedCount = document.querySelectorAll(SEL.selectedTask).length;
 
     // Also check for the native "N selected" action bar (Todoist renders it
     // as a fixed bar with role or specific data attributes near the bottom)
     let nativeBarVisible = false;
     if (selectedCount === 0) {
-      const bar = document.querySelector('[data-testid="multi-select-toolbar"], [class*="multi_select"], [class*="selection_toolbar"], [class*="bulk_action"]');
-      nativeBarVisible = !!bar;
+      nativeBarVisible = !!document.querySelector(SEL.nativeSelectionBar);
     }
 
     const hasSelection = selectedCount > 0 || nativeBarVisible;
@@ -346,30 +383,43 @@
       copyBtn.classList.add("visible");
     } else {
       if (lastSelectedCount > 0) lastSelectedCount = 0;
+      cachedTasks = [];
       copyBtn.classList.remove("visible");
     }
   }
 
-  // Poll to keep cache fresh
-  setInterval(checkForSelectionBar, 300);
+  // One throttled MutationObserver replaces the old 300ms polling. The first
+  // change runs a check at once (so selection is cached before a click can
+  // deselect it); further changes within 120ms are coalesced into one more check.
+  let lastRun = 0;
+  let pending = 0;
+  function schedule() {
+    const wait = 120 - (performance.now() - lastRun);
+    if (wait <= 0) { lastRun = performance.now(); checkForSelectionBar(); return; }
+    if (!pending) pending = setTimeout(() => { pending = 0; schedule(); }, wait);
+  }
+  const ours = (node) => {
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    return !!el && (el === copyBtn || el === toast || el.closest(".tms-modal-backdrop, .tms-toast, .tms-priority-button") !== null);
+  };
+  new MutationObserver((records) => {
+    // Ignore our own UI changes so we never trigger ourselves.
+    if (records.some((r) => !ours(r.target))) schedule();
+  }).observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["aria-selected", "class", "style"],
+  });
+  schedule();
 
-  // --- Keyboard shortcut: Cmd/Ctrl + Shift + C ---
+  // --- Keyboard shortcut: Cmd/Ctrl + Shift + C (e.code works on every layout) ---
   document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "C") {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === "KeyC" && copyEnabled) {
       const tasks = cachedTasks.length > 0 ? cachedTasks : scanSelectedTasks();
       if (tasks.length > 0) {
         e.preventDefault();
-        const text = buildCopyText(tasks);
-        copyToClipboard(text).then(async () => {
-          showToast(`Copied ${tasks.length} task${tasks.length === 1 ? "" : "s"}`);
-          const snapshot = tasks.slice();
-          cachedTasks = [];
-          const confirmed = await askToComplete(snapshot.length);
-          if (confirmed) {
-            const done = await completeTasks(snapshot);
-            showToast(`Completed ${done} task${done === 1 ? "" : "s"}`);
-          }
-        });
+        copySelection();
       }
     }
   });

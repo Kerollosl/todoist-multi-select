@@ -2,13 +2,36 @@
   'use strict';
   const id = new URLSearchParams(location.hash.slice(1)).get('tms');
   if (!id || !/^[a-f0-9-]{36}$/.test(id) || location.pathname !== '/') return;
-  const pluginId = 'plugin_asdk_app_6943b73823548191a9f9216c6790c453';
-  const mentionSelector = '[plugin-mention-name="app-6943b73823548191a9f9216c6790c453"]';
+  // Every ChatGPT page detail this automation relies on lives here. Values are unchanged
+  // and have to be re-checked on the live site whenever ChatGPT changes. If anything is
+  // missing, the script stops, explains, and offers the prompt to copy instead of guessing.
+  const SELECTORS = {
+    pluginId: 'plugin_asdk_app_6943b73823548191a9f9216c6790c453',
+    mention: '[plugin-mention-name="app-6943b73823548191a9f9216c6790c453"]',
+    composer: '[contenteditable="true"][aria-label="Work with ChatGPT"]',
+    anyTextbox: '[contenteditable="true"][role="textbox"]',
+    modelPickerLabel: 'Select ChatGPT model',
+    modelMenu: '[role="menu"][aria-labelledby]',
+    modelViewToggle: '[data-model-picker-view-toggle]',
+    modelOption: '[role="menuitemradio"]',
+    checkedModel: '[role="menuitemradio"][aria-checked="true"]',
+    menuRoot: '[role="menu"]',
+    reasoningMenu: '[role="menu"] [data-reasoning-slider]',
+    reasoningSlider: '[data-reasoning-slider]',
+    pluginsButton: 'button[aria-label="Plugins"]',
+    pluginSearch: 'input[placeholder="Search plugins…"]',
+    pluginOption: id => `[data-plugin-impression-id="${id}"]`,
+  };
+  // The model and effort the hand-off asks ChatGPT Work to use.
+  const MODEL_NAME = 'GPT-6 Luna';
+  const EFFORT = 'medium';
+  const pluginId = SELECTORS.pluginId;
+  const mentionSelector = SELECTORS.mention;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const visible = el => el && el.getClientRects().length && !el.closest('[inert], [aria-hidden="true"]');
   const find = (selector, root = document) => [...root.querySelectorAll(selector)].find(visible);
   const button = text => [...document.querySelectorAll('button')].find(el => visible(el) && (el.getAttribute('aria-label') || el.textContent.trim()) === text);
-  const composer = () => find('[contenteditable="true"][aria-label="Work with ChatGPT"]');
+  const composer = () => find(SELECTORS.composer);
   const normalized = text => (text || '').replace(/\s+/g, ' ').trim();
   function draftText(input) {
     if (!input) return '';
@@ -72,19 +95,19 @@
     panel.appendChild(close);
   }
   async function selectModel() {
-    const picker = await waitFor(() => button('Select ChatGPT model'), 'Cannot find the Work model picker.');
+    const picker = await waitFor(() => button(SELECTORS.modelPickerLabel), 'Cannot find the Work model picker.');
     picker.click();
-    let menu = await waitFor(() => find('[role="menu"][aria-labelledby]'), 'Cannot open the model picker.');
-    const toggle = find('[data-model-picker-view-toggle]', menu);
+    let menu = await waitFor(() => find(SELECTORS.modelMenu), 'Cannot open the model picker.');
+    const toggle = find(SELECTORS.modelViewToggle, menu);
     if (toggle) toggle.click();
-    const luna = await waitFor(() => [...document.querySelectorAll('[role="menuitemradio"]')].find(el => visible(el) && el.textContent.trim() === 'GPT-6 Luna'), 'GPT-6 Luna is not available in this picker.');
+    const luna = await waitFor(() => [...document.querySelectorAll(SELECTORS.modelOption)].find(el => visible(el) && el.textContent.trim() === MODEL_NAME), 'GPT-6 Luna is not available in this picker.');
     if (luna.getAttribute('aria-disabled') === 'true') throw new Error('GPT-6 Luna is unavailable for this account.');
     luna.click();
-    menu = await waitFor(() => find('[role="menu"] [data-reasoning-slider]')?.closest('[role="menu"]'), 'Cannot find Luna reasoning effort.');
-    const selected = menu.querySelector('[role="menuitemradio"][aria-checked="true"]');
-    if (selected?.textContent.trim() !== 'GPT-6 Luna') throw new Error('Could not verify GPT-6 Luna.');
-    for (let attempt = 0; picker.getAttribute('data-selected-reasoning-effort') !== 'medium' && attempt < 6; attempt++) {
-      const slider = find('[data-reasoning-slider]', menu);
+    menu = await waitFor(() => find(SELECTORS.reasoningMenu)?.closest(SELECTORS.menuRoot), 'Cannot find Luna reasoning effort.');
+    const selected = menu.querySelector(SELECTORS.checkedModel);
+    if (selected?.textContent.trim() !== MODEL_NAME) throw new Error('Could not verify GPT-6 Luna.');
+    for (let attempt = 0; picker.getAttribute('data-selected-reasoning-effort') !== EFFORT && attempt < 6; attempt++) {
+      const slider = find(SELECTORS.reasoningSlider, menu);
       const value = Number(menu.querySelector('[role="slider"]')?.getAttribute('aria-valuenow'));
       if (!slider || !Number.isFinite(value)) throw new Error('Cannot read Luna effort.');
       slider.focus();
@@ -93,17 +116,17 @@
       slider.dispatchEvent(new KeyboardEvent('keyup', { key, code: key, bubbles: true }));
       await sleep(150);
     }
-    if (picker.getAttribute('data-selected-reasoning-effort') !== 'medium') throw new Error('Could not select Medium effort.');
+    if (picker.getAttribute('data-selected-reasoning-effort') !== EFFORT) throw new Error('Could not select Medium effort.');
     picker.click();
     await waitFor(() => picker.getAttribute('aria-expanded') === 'false', 'Close the model picker to continue.');
   }
   async function selectTodoist() {
-    const plugins = [...document.querySelectorAll('button[aria-label="Plugins"]')].find(visible);
+    const plugins = [...document.querySelectorAll(SELECTORS.pluginsButton)].find(visible);
     if (!plugins) throw new Error('Cannot find the Work Plugins picker.');
     plugins.click();
-    const search = await waitFor(() => find('input[placeholder="Search plugins…"]'), 'Cannot search Work plugins.');
+    const search = await waitFor(() => find(SELECTORS.pluginSearch), 'Cannot search Work plugins.');
     setInput(search, 'Todoist');
-    const option = await waitFor(() => find(`[data-plugin-impression-id="${pluginId}"]`), 'The Todoist plugin is not available. Connect it in ChatGPT first.');
+    const option = await waitFor(() => find(SELECTORS.pluginOption(pluginId)), 'The Todoist plugin is not available. Connect it in ChatGPT first.');
     if (option.getAttribute('aria-disabled') === 'true') throw new Error('The Todoist plugin is unavailable.');
     option.click();
     await waitFor(() => composer()?.querySelector(mentionSelector), 'Could not add the Todoist plugin mention.');
@@ -122,9 +145,9 @@
       if (!result?.ok) throw new Error('This Work handoff expired or was already used. Start again from Todoist.');
       prompt = result.prompt;
       history.replaceState(history.state, '', location.pathname + location.search);
-      showStatus('Todoist Task Toolkit: preparing Work · GPT-6 Luna · Medium…');
+      showStatus('Todoist Task Toolkit: preparing Work…');
       // Never replace a draft, even if the site restored one into this new tab.
-      const draft = find('[contenteditable="true"][role="textbox"]');
+      const draft = find(SELECTORS.anyTextbox);
       if (draft?.textContent.trim()) throw new Error('An existing draft was preserved. Copy the sorting prompt and start a new Work task manually.');
       const work = button('Work');
       if (work && work.getAttribute('aria-pressed') !== 'true') work.click();
@@ -147,11 +170,11 @@
       selection.addRange(range);
       if (!document.execCommand('insertText', false, '\n' + prompt)) throw new Error('Could not insert the sorting prompt.');
       await waitFor(() => draftText(composer()) === normalized(prompt), 'Could not verify the sorting prompt.');
-      const picker = button('Select ChatGPT model');
-      if (!composer()?.querySelector(mentionSelector) || picker?.getAttribute('data-selected-reasoning-effort') !== 'medium' || button('Work')?.getAttribute('aria-pressed') !== 'true') throw new Error('Work settings changed before submission. The prompt is ready for manual review.');
+      const picker = button(SELECTORS.modelPickerLabel);
+      if (!composer()?.querySelector(mentionSelector) || picker?.getAttribute('data-selected-reasoning-effort') !== EFFORT || button('Work')?.getAttribute('aria-pressed') !== 'true') throw new Error('Work settings changed before submission. The prompt is ready for manual review.');
       picker.click();
-      const menu = await waitFor(() => find('[role="menu"] [data-reasoning-slider]')?.closest('[role="menu"]'), 'Cannot verify the final Work model.');
-      if (menu.querySelector('[role="menuitemradio"][aria-checked="true"]')?.textContent.trim() !== 'GPT-6 Luna') throw new Error('The model changed before submission. Select GPT-6 Luna manually.');
+      const menu = await waitFor(() => find(SELECTORS.reasoningMenu)?.closest(SELECTORS.menuRoot), 'Cannot verify the final Work model.');
+      if (menu.querySelector(SELECTORS.checkedModel)?.textContent.trim() !== MODEL_NAME) throw new Error('The model changed before submission. Select GPT-6 Luna manually.');
       picker.click();
       await waitFor(() => picker.getAttribute('aria-expanded') === 'false', 'Close the model picker before sending.');
       const send = await waitFor(() => {
@@ -159,14 +182,14 @@
         return el && !el.disabled && el.getAttribute('aria-disabled') !== 'true' && el;
       }, 'The prompt is ready. Press Send in ChatGPT to start.');
       const finalInput = composer();
-      const finalPicker = button('Select ChatGPT model');
-      if (location.pathname !== '/' || !finalInput?.querySelector(mentionSelector) || draftText(finalInput) !== normalized(prompt) || finalPicker?.getAttribute('data-selected-reasoning-effort') !== 'medium' || !finalPicker?.textContent.includes('GPT-6 Luna') || finalPicker.getAttribute('aria-expanded') !== 'false' || button('Work')?.getAttribute('aria-pressed') !== 'true') {
+      const finalPicker = button(SELECTORS.modelPickerLabel);
+      if (location.pathname !== '/' || !finalInput?.querySelector(mentionSelector) || draftText(finalInput) !== normalized(prompt) || finalPicker?.getAttribute('data-selected-reasoning-effort') !== EFFORT || !finalPicker?.textContent.includes(MODEL_NAME) || finalPicker.getAttribute('aria-expanded') !== 'false' || button('Work')?.getAttribute('aria-pressed') !== 'true') {
         throw new Error('The draft or Work settings changed. Review them and send manually.');
       }
       // Exactly one click. Never retry an uncertain submission.
       send.click();
       await waitFor(() => draftText(composer()) !== normalized(prompt), 'Send was clicked once, but submission could not be confirmed. Check the conversation before sending again.');
-      showStatus('Sorting request submitted to ChatGPT Work · GPT-6 Luna · Medium.');
+      showStatus('Sorting request submitted to ChatGPT Work.');
       setTimeout(() => document.getElementById('tms-work-status')?.remove(), 6000);
     } catch (error) {
       showStatus(`Todoist groups are ready. ${error.message} Automatic submission stopped.`, prompt);
