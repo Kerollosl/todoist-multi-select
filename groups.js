@@ -161,11 +161,18 @@
   // One throttled observer instead of a 500ms interval.
   let timer = 0;
   const schedule = () => { if (!timer) timer = setTimeout(() => { timer = 0; mount(); }, 250); };
-  new MutationObserver(records => {
+  const observer = new MutationObserver(records => {
     if (records.some(r => !(r.target.nodeType === 1 ? r.target : r.target.parentElement)?.closest('.tms-group-nav-item'))) schedule();
-  }).observe(document.body, { childList: true, subtree: true });
-  chrome.storage.sync.get({ groupsEnabled: false }).then(v => { enabled = v.groupsEnabled === true; mount(); });
+  });
+  // Groups is off by default: only watch the page while it is switched on.
+  const setEnabled = value => {
+    enabled = value;
+    if (enabled) observer.observe(document.body, { childList: true, subtree: true });
+    else { observer.disconnect(); clearTimeout(timer); timer = 0; }
+    mount();
+  };
+  chrome.storage.sync.get({ groupsEnabled: false }).then(v => setEnabled(v.groupsEnabled === true));
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes.groupsEnabled) { enabled = changes.groupsEnabled.newValue === true; mount(); }
+    if (area === 'sync' && changes.groupsEnabled) setEnabled(changes.groupsEnabled.newValue === true);
   });
 })();

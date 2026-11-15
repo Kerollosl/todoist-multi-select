@@ -409,7 +409,7 @@
     subtree: true,
     childList: true,
     attributes: true,
-    attributeFilter: ["aria-selected", "class", "style"],
+    attributeFilter: ["aria-selected", "class"], // selection is aria-selected; style churns on hover/drag
   });
   schedule();
 
