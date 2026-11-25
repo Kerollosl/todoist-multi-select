@@ -402,9 +402,16 @@
     const el = node.nodeType === 1 ? node : node.parentElement;
     return !!el && (el === copyBtn || el === toast || el.closest(".tms-modal-backdrop, .tms-toast, .tms-priority-button") !== null);
   };
+  // Class changes anywhere on the page (hover, focus, animations) are noise; only
+  // class changes on task rows or the native selection toolbar can affect selection.
+  const CLASS_TARGETS = `.board_task, [data-testid="task-card"], ${SEL.selectionIdTask}, ${SEL.nativeSelectionBar}`;
+  const relevant = (r) => {
+    if (ours(r.target)) return false; // ignore our own UI so we never trigger ourselves
+    if (r.type !== "attributes" || r.attributeName !== "class") return true;
+    return r.target.nodeType === 1 && r.target.matches(CLASS_TARGETS);
+  };
   new MutationObserver((records) => {
-    // Ignore our own UI changes so we never trigger ourselves.
-    if (records.some((r) => !ours(r.target))) schedule();
+    if (records.some(relevant)) schedule();
   }).observe(document.body, {
     subtree: true,
     childList: true,

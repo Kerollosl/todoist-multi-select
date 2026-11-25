@@ -11,8 +11,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://app.todoist.com/*",
-        "https://todoist.com/*"
+        "https://app.todoist.com/*"
       ],
       "js": ["selectors.js", "content.js", "groups.js"],
       "css": ["styles.css"]
