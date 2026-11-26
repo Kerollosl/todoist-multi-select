@@ -1,0 +1,13 @@
+{
+  "name": "todoist-task-toolkit",
+  "version": "1.3.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "package": "./package.sh"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.8",
+    "typescript": "^7.0.2"
+  }
+}

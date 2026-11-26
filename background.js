@@ -43,7 +43,7 @@ chrome.permissions.onRemoved.addListener(safeSync);
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const origin = sender.url && new URL(sender.url).origin;
-  if (message.type === 'tms-open-work' && ['https://app.todoist.com', 'https://todoist.com'].includes(origin)) {
+  if (message.type === 'tms-open-work' && ['https://app.todoist.com', 'https://todoist.com'].includes(/** @type {string} */ (origin))) {
     (async () => {
       const { groupsEnabled } = await chrome.storage.sync.get({ groupsEnabled: false });
       if (groupsEnabled !== true) throw new Error('Groups + Work is turned off in the extension options.');
@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.type === 'tms-take-prompt' && origin === 'https://chatgpt.com' && typeof message.id === 'string') {
     (async () => {
       const data = await chrome.storage.session.get([message.id, `tab-${message.id}`]);
-      const pending = data[message.id];
+      const pending = /** @type {{ prompt: string, expires: number } | undefined} */ (data[message.id]);
       if (!pending || pending.expires < Date.now() || data[`tab-${message.id}`] !== sender.tab?.id) {
         respond({ ok: false });
         return;

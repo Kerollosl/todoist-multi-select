@@ -1,13 +1,13 @@
-const copy = document.getElementById("copy");
-const groups = document.getElementById("groups");
-const status = document.getElementById("status");
+const copy = /** @type {HTMLInputElement} */ (document.getElementById("copy"));
+const groups = /** @type {HTMLInputElement} */ (document.getElementById("groups"));
+const status = /** @type {HTMLElement} */ (document.getElementById("status"));
 const ORIGINS = { origins: ["https://chatgpt.com/*"] };
-document.getElementById("version").textContent = "Version " + chrome.runtime.getManifest().version;
+/** @type {HTMLElement} */ (document.getElementById("version")).textContent = "Version " + chrome.runtime.getManifest().version;
 
 chrome.storage.sync.get({ copyEnabled: true, groupsEnabled: false }).then(async (v) => {
-  copy.checked = v.copyEnabled;
+  copy.checked = /** @type {boolean} */ (v.copyEnabled);
   // Show "on" only if access to chatgpt.com is still granted.
-  groups.checked = v.groupsEnabled && (await chrome.permissions.contains(ORIGINS));
+  groups.checked = /** @type {boolean} */ (v.groupsEnabled) && (await chrome.permissions.contains(ORIGINS));
 });
 
 copy.addEventListener("change", async () => {

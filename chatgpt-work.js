@@ -56,7 +56,7 @@
     throw new Error(message);
   }
   function setInput(input, value) {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+    /** @type {(this: HTMLInputElement, v: string) => void} */ (/** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')).set).call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
   function showStatus(text, prompt) {
@@ -121,7 +121,7 @@
     await waitFor(() => picker.getAttribute('aria-expanded') === 'false', 'Close the model picker to continue.');
   }
   async function selectTodoist() {
-    const plugins = [...document.querySelectorAll(SELECTORS.pluginsButton)].find(visible);
+    const plugins = /** @type {HTMLElement | undefined} */ ([...document.querySelectorAll(SELECTORS.pluginsButton)].find(visible));
     if (!plugins) throw new Error('Cannot find the Work Plugins picker.');
     plugins.click();
     const search = await waitFor(() => find(SELECTORS.pluginSearch), 'Cannot search Work plugins.');
@@ -165,7 +165,7 @@
       const range = document.createRange();
       range.selectNodeContents(input);
       range.collapse(false);
-      const selection = window.getSelection();
+      const selection = /** @type {Selection} */ (window.getSelection());
       selection.removeAllRanges();
       selection.addRange(range);
       if (!document.execCommand('insertText', false, '\n' + prompt)) throw new Error('Could not insert the sorting prompt.');
@@ -192,7 +192,7 @@
       showStatus('Sorting request submitted to ChatGPT Work.');
       setTimeout(() => document.getElementById('tms-work-status')?.remove(), 6000);
     } catch (error) {
-      showStatus(`Todoist groups are ready. ${error.message} Automatic submission stopped.`, prompt);
+      showStatus(`Todoist groups are ready. ${/** @type {Error} */ (error).message} Automatic submission stopped.`, prompt);
     }
   }
   start();

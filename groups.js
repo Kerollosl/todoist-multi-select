@@ -87,7 +87,7 @@
     trigger.click();
     const input = await waitFor(() => document.querySelector(SEL.sectionNameInput));
     checkContext(url);
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, name);
+    /** @type {(this: HTMLInputElement, v: string) => void} */ (/** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')).set).call(input, name);
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
     const submit = await waitFor(() => {
@@ -120,14 +120,14 @@
       button.textContent = 'Groups ready · Work opened';
     } catch (error) {
       button.textContent = 'Groups + Work';
-      notify(error.message);
+      notify(/** @type {Error} */ (error).message);
     } finally {
       busy = false;
       button.disabled = false;
     }
   }
   function mount() {
-    const existingItem = document.querySelector('.tms-group-nav-item');
+    const existingItem = /** @type {HTMLElement | null} */ (document.querySelector('.tms-group-nav-item'));
     if (!enabled) {
       existingItem?.remove();
       return;
@@ -136,7 +136,7 @@
     const available = !!projectUrl() && sections().length > 0;
     if (existingItem) {
       existingItem.hidden = !available;
-      existingItem.querySelector('button').disabled = busy;
+      /** @type {HTMLButtonElement} */ (existingItem.querySelector('button')).disabled = busy;
       return;
     }
     // Fail soft: without the sidebar menu or any board section, add nothing.
@@ -162,7 +162,7 @@
   let timer = 0;
   const schedule = () => { if (!timer) timer = setTimeout(() => { timer = 0; mount(); }, 250); };
   const observer = new MutationObserver(records => {
-    if (records.some(r => !(r.target.nodeType === 1 ? r.target : r.target.parentElement)?.closest('.tms-group-nav-item'))) schedule();
+    if (records.some(r => !(r.target.nodeType === 1 ? /** @type {Element} */ (r.target) : r.target.parentElement)?.closest('.tms-group-nav-item'))) schedule();
   });
   // Groups is off by default: only watch the page while it is switched on.
   const setEnabled = value => {

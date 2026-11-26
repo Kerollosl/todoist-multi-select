@@ -12,7 +12,7 @@
 
   // --- Settings (Copy is on unless the user turns it off in Options) ---
   let copyEnabled = true;
-  chrome.storage.sync.get({ copyEnabled: true }).then((v) => { copyEnabled = v.copyEnabled; schedule(); });
+  chrome.storage.sync.get({ copyEnabled: true }).then((v) => { copyEnabled = /** @type {boolean} */ (v.copyEnabled); schedule(); });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "sync" && changes.copyEnabled) { copyEnabled = changes.copyEnabled.newValue !== false; schedule(); }
   });
@@ -46,7 +46,7 @@
     }
     const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(bg);
     const dark = m
-      ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) < 128
+      ? (0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3]) < 128
       : matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.dataset.tmsTheme = dark ? "dark" : "light";
   }
@@ -214,7 +214,7 @@
       modal.appendChild(actions);
       backdrop.appendChild(modal);
 
-      const previousFocus = document.activeElement;
+      const previousFocus = /** @type {HTMLElement | null} */ (document.activeElement);
       const close = (result) => {
         backdrop.remove();
         document.removeEventListener("keydown", onKey, true);
@@ -339,7 +339,7 @@
         }
         const textNodes = document.createTreeWalker(priority, NodeFilter.SHOW_TEXT);
         while (textNodes.nextNode()) {
-          if (textNodes.currentNode.textContent.trim() === "Labels") {
+          if (/** @type {string} */ (textNodes.currentNode.textContent).trim() === "Labels") {
             textNodes.currentNode.textContent = "Priority";
           }
         }
